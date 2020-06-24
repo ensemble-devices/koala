@@ -344,9 +344,9 @@ class FunctionNode(ASTNode):
             #simply create a list
             return ",".join([n.emit(ast,context=context) for n in args])
 
-        elif fun == "and":
+        elif fun == "_and": # "and" no longer implemented here, see "x_and" in excellib
             return "all([" + ",".join([n.emit(ast,context=context) for n in args]) + "])"
-        elif fun == "or":
+        elif fun == "_or": # "or" no longer implemented here, see "x_or" in excellib
             return "any([" + ",".join([n.emit(ast,context=context) for n in args]) + "])"
         elif fun == "index":
             if pointer or self.parent(ast) is not None and self.parent(ast).tvalue == ':':

@@ -35,10 +35,12 @@ from functools import reduce
 # Note: some functions (if, pi, atan2, and, or, array, ...) are already taken care of
 # in the FunctionNode code, so adding them here will have no effect.
 FUNCTION_MAP = {
+    "and": "x_and",
     "gammaln": "lgamma",
     "ln": "xlog",
     "max": "xmax",
     "min": "xmin",
+    "or": "x_or",
     "round": "xround",
     "sum": "xsum",
 }
@@ -46,7 +48,7 @@ FUNCTION_MAP = {
 # Define the function below, then add the definition below (both alphabetically)
 IND_FUN = [
     "ALL",  # see astnodes.py, not defined here
-    "AND",  # see astnodes.py, not defined here
+    "AND",  # see astnodes.py, not defined here # ahem, now see x_and below
     "ARRAY",  # see astnodes.py, not defined here
     "ARRAYROW",  # see astnodes.py, not defined here
     "ATAN2",  # see astnodes.py, not defined here
@@ -83,7 +85,7 @@ IND_FUN = [
     "MONTH",
     "NPV",
     "OFFSET",  # see astnodes.py
-    "OR",  # see astnodes.py, not defined here
+    "OR",  # see astnodes.py, not defined here # ahem, now see x_or below
     "PI",  # see astnodes.py, not defined here
     "PMT",
     "POWER",
@@ -1216,6 +1218,27 @@ def xround(number, num_digits = 0): # Excel reference: https://support.office.co
     else:
         return round(number, num_digits)
 
+def x_bools(*args, and_fun=True): 
+    # consider only boolean cells - intended to support ranges which include void cells
+    # implements AND if and_fun=True, otherwise implements OR  
+
+    values = extract_boolean_values(*args) # ToDo: consider: extract_boolean_values(*args, allow_void_cells=True)
+
+    for v in values:
+        if isinstance(v, ExcelError):
+            return v
+
+    # however, if no boolean cells, return False (I'll have to test what excel does)
+    if len(values) < 1:
+        return False
+    else:
+        return all(values) if and_fun else any(values)
+
+def x_and(*args): # Excel reference:
+    return x_bools(*args, and_fun=True)
+
+def x_or(*args):
+    return x_bools(*args, and_fun=False)
 
 def xsum(*args): # Excel reference: https://support.office.com/en-us/article/SUM-function-043e1c7d-7726-4e80-8f32-07b23e057f89
     # ignore non numeric cells and boolean cells

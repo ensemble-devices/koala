@@ -567,6 +567,18 @@ def check_length(range1, range2):
     else:
         return range2
 
+def extract_boolean_values(*args):
+    values = []
+
+    for arg in args:
+        if isinstance(arg, collections.abc.Iterable) and type(arg) != list and type(arg) != tuple and type(arg) != str: # does not work fo other Iterable than RangeCore, but can t import RangeCore here for circular reference issues
+            values.extend([x for x in arg.values if isinstance(x, bool)])
+        elif type(arg) is tuple or type(arg) is list:
+            values.extend([x for x in arg if isinstance(x, bool)])
+        elif isinstance(arg, bool):
+            values.append(arg)
+
+    return values
 
 def extract_numeric_values(*args):
     values = []
