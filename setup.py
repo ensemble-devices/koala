@@ -67,9 +67,6 @@ if __name__ == '__main__':
             'openpyxl >= 3.0.3',
             'numpy >= 1.14.2',
             'numpy-financial>=1.0.0',
-            'Cython >= 0.29.15',
-            'lxml >= 4.5.0',
-            'scipy>=1.0.0',
-            'python-dateutil>=2.8.0'
+            'scipy>=1.0.0'
         ]
     )
