@@ -216,10 +216,13 @@ class Spreadsheet(object):
         self.debug = debug
         self.fixed_cells = {}
 
-        # make sure that all cells that don't have a value defined are updated.
         for cell in self.cellmap.values():
+            # make sure that all cells that don't have a value defined are updated,
             if cell.value is None and cell.formula is not None:
                 cell.needs_update = True
+            # and that constant values remain through resets.
+            if cell.formula is None and cell.value is not None:
+                cell.should_eval = 'never'
 
 
     def activate_history(self):
@@ -836,6 +839,19 @@ class Spreadsheet(object):
             except KeyError:
                 raise Exception('Cell %s not in cellmap' % address)
 
+    def cell_reveal(self, address):
+        ''' for debugging purposes - prints interesting things about a cell '''
+
+        if address in self.cellmap:
+            cell = self.cellmap[address]
+            cell_dict = cell.asdict()
+            cell_dict['need update'] = cell.need_update
+            logging.info('{}'.format(cell_dict))
+            return
+        else:
+            logging.info('{} not in spreadsheet'.format(address))
+            return
+
     def print_value_tree(self,addr,indent):
         cell = self.cellmap[addr]
         logging.debug("%s %s = %s" % (" "*indent,addr,cell.value))
@@ -964,7 +980,11 @@ class Spreadsheet(object):
             return ExcelError('#NULL', 'Cell %s is empty' % address)
 
         # no formula, fixed value
-        if cell.should_eval == 'normal' and not cell.need_update and cell.value is not None or not cell.formula or cell.should_eval == 'never':
+        if (    cell.should_eval == 'normal'
+                and not cell.need_update
+                and cell.value is not None
+                or not cell.formula
+                or cell.should_eval == 'never'  ):
             return cell.value if cell.value != '' else None
         try:
             if cell.is_range:
