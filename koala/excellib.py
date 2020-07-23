@@ -10,7 +10,7 @@ import itertools
 import numpy as np
 import numpy_financial as npf
 import scipy.optimize
-import datetime
+import datetime as dt
 import random
 from math import log, ceil
 from decimal import Decimal, ROUND_UP, ROUND_HALF_UP
@@ -48,7 +48,7 @@ FUNCTION_MAP = {
 # Define the function below, then add the definition below (both alphabetically)
 IND_FUN = [
     "ALL",  # see astnodes.py, not defined here
-    "AND",  # see astnodes.py, not defined here # ahem, now see x_and below
+    "AND",  # see astnodes.py, but, now see x_and, redefined in function map above
     "ARRAY",  # see astnodes.py, not defined here
     "ARRAYROW",  # see astnodes.py, not defined here
     "ATAN2",  # see astnodes.py, not defined here
@@ -62,10 +62,13 @@ IND_FUN = [
     "COUNTIF",
     "COUNTIFS",
     "DATE",
+    "DAY",
+    "DAYS",
     "EDATE",
     "EOMONTH",
     "GAMMALN",  # see lgamma, a Python function, redefined in function map above
     "HLOOKUP",
+    "HOUR",
     "IF",  # see astnodes.py, not defined here
     "IFERROR",
     "INDEX",  # see astnodes.py
@@ -81,11 +84,13 @@ IND_FUN = [
     "MAX",  # see xmax, redefined in function map above
     "MID",
     "MIN",  # see xmin, redefined in function map above
+    "MINUTE",
     "MOD",
     "MONTH",
+    "NOW",
     "NPV",
     "OFFSET",  # see astnodes.py
-    "OR",  # see astnodes.py, not defined here # ahem, now see x_or below
+    "OR",  # see astnodes.py, but, now see x_or, redefined in function map above
     "PI",  # see astnodes.py, not defined here
     "PMT",
     "POWER",
@@ -95,6 +100,7 @@ IND_FUN = [
     "ROUND",  # see xround, redefined in function map above
     "ROUNDUP",
     "ROWS",
+    "SECOND",
     "SLN",
     "SQRT",
     "SUM",  # see xsum, redefined in function map above
@@ -106,6 +112,7 @@ IND_FUN = [
     "VALUE",
     "VDB",
     "VLOOKUP",
+    "WEEKDAY",
     "XIRR",
     "XLOG",
     "XNPV",
@@ -114,7 +121,7 @@ IND_FUN = [
 ]
 
 CELL_CHARACTER_LIMIT = 32767
-EXCEL_EPOCH = datetime.datetime.strptime("1900-01-01", '%Y-%m-%d').date()
+EXCEL_EPOCH = dt.datetime(1900,1,1)
 
 ######################################################################################
 # List of excel equivalent functions
@@ -280,8 +287,7 @@ def countifs(*args): # Excel reference: https://support.office.com/en-us/article
     else:
         return float('inf')
 
-
-def date(year, month, day):  # Excel reference: https://support.office.com/en-us/article/DATE-function-e36c0c8c-4104-49da-ab83-82328b832349
+def date(year, month, day): # Excel reference: https://support.office.com/en-us/article/DATE-function-e36c0c8c-4104-49da-ab83-82328b832349
 
     if type(year) != int:
         return ExcelError('#VALUE!', '%s is not an integer' % str(year))
@@ -300,52 +306,57 @@ def date(year, month, day):  # Excel reference: https://support.office.com/en-us
 
     year, month, day = normalize_year(year, month, day) # taking into account negative month and day values
 
-    date_0 = datetime.datetime(1900, 1, 1)
-    date = datetime.datetime(year, month, day)
-
-    result = (date - date_0).days + 2
-
-    if result <= 0:
-        return ExcelError('#VALUE!', 'Date result is negative')
-    else:
-        return result
+    return excel_from_date(dt.datetime(year, month, day))
 
 
-def edate(start_date, months):  # Excel reference: https://support.office.com/en-us/article/EDATE-function-3C920EB2-6E66-44E7-A1F5-753AE47EE4F5
-    if not is_number(start_date):
-        return ExcelError('#VALUE!', 'start_date %s must be a number' % str(start_date))
-    if start_date < 0:
-        return ExcelError('#VALUE!', 'start_date %s must be positive' % str(start_date))
+def day(serial_number): # Excel reference: https://support.office.com/en-us/article/day-function-8a7d1cbb-6c7d-4ba1-8aea-25c134d03101
+    try:
+        dt_date = date_from_excel(serial_number)
+        return dt_date.day
+    except (TypeError, ValueError) as error_message:
+        return ExcelError('#VALUE!', error_message)
 
-    if not is_number(months):
-        return ExcelError('#VALUE!', 'months %s must be a number' % str(months))
 
-    y1, m1, d1 = date_from_int(start_date)
-    start_date_d = datetime.date(year=y1, month=m1, day=d1)
-    end_date_d = start_date_d + relativedelta(months=int(months))
-    res = int(int_from_date(end_date_d))
+def days(end_date, start_date): # Excel reference: https://support.office.com/en-us/article/days-function-57740535-d549-4395-8728-0f07bff0b9df
+    try:
+        interval = date_from_excel(end_date) - date_from_excel(start_date)
+        return interval.days
+    except (TypeError, ValueError) as error_message:
+        return ExcelError('#VALUE!', error_message)
 
-    return res
+
+def edate(serial_number, months):  # Excel reference: https://support.office.com/en-us/article/EDATE-function-3C920EB2-6E66-44E7-A1F5-753AE47EE4F5
+    try:
+        if not is_number(months):
+            return ExcelError('#VALUE!', 'months %s must be a number' % str(months))
+
+        start_date = date_from_excel(serial_number)
+
+        end_date = start_date + relativedelta(months=int(months))
+
+        return excel_from_date(end_date) 
+
+    except (TypeError, ValueError) as error_message:
+        return ExcelError('#VALUE!', error_message)
 
 
 def eomonth(start_date, months):  # Excel reference: https://support.office.com/en-us/article/eomonth-function-7314ffa1-2bc9-4005-9d66-f49db127d628
-    if not is_number(start_date):
-        return ExcelError('#VALUE!', 'start_date %s must be a number' % str(start_date))
-    if start_date < 0:
-        return ExcelError('#VALUE!', 'start_date %s must be positive' % str(start_date))
+    try:
+        if not is_number(months):
+            return ExcelError('#VALUE!', 'months %s must be a number' % str(months))
 
-    if not is_number(months):
-        return ExcelError('#VALUE!', 'months %s must be a number' % str(months))
+        start_date = date_from_excel(serial_number)
 
-    y1, m1, d1 = date_from_int(start_date)
-    start_date_d = datetime.date(year=y1, month=m1, day=d1)
-    end_date_d = start_date_d + relativedelta(months=int(months))
-    y2 = end_date_d.year
-    m2 = end_date_d.month
-    d2 = monthrange(y2, m2)[1]
-    res = int(int_from_date(datetime.date(y2, m2, d2)))
+        end_date = start_date + relativedelta(months=int(months))
 
-    return res
+        last_day_of_month = monthrange(end_date.year, end_date.month)
+
+        end_date = end_date + relativedelta(day=last_day_of_month)
+
+        return excel_from_date(end_date) 
+
+    except (TypeError, ValueError) as error_message:
+        return ExcelError('#VALUE!', error_message)
 
 
 def hlookup(lookup_value, table_array, row_index_num, range_lookup=True): # https://support.office.com/en-us/article/HLOOKUP-function-A3034EEC-B719-4BA3-BB65-E1AD662ED95F
@@ -378,6 +389,14 @@ def hlookup(lookup_value, table_array, row_index_num, range_lookup=True): # http
             return ExcelError('#N/A', 'lookup_value smaller than all values of table_array')
 
     return Range.find_associated_value(ref, result_row)
+
+
+def hour(serial_number): # Excel reference: https://support.office.com/en-us/article/HOUR-function-A3AFA879-86CB-4339-B1B5-2DD2D7310AC7
+    
+    if not isinstance(serial_number, (int, float)):
+        return ExcelError('#VALUE!', '%s is not yet a supported Serial_number format' % str(serial_number))
+    fraction_of_day = serial_number % 1.0
+    return int(fraction_of_day*24)
 
 
 def iferror(value, value_if_error):  # Excel reference: https://support.office.com/en-us/article/IFERROR-function-c526fd07-caeb-47b8-8bb6-63f3e417f611
@@ -655,6 +674,13 @@ def mid(text, start_num, num_chars):  # Excel reference: https://support.office.
 
     return text[(start_num - 1): (start_num - 1 + num_chars)]
 
+def minute(serial_number): # Excel reference: https://support.office.com/en-us/article/MINUTE-function-AF728DF0-05C4-4B07-9EED-A84801A60589
+    
+    if not isinstance(serial_number, (int, float)):
+        return ExcelError('#VALUE!', '%s is not yet a supported Serial_number format' % str(serial_number))
+    fraction_of_day = serial_number % 1.0
+    return int((fraction_of_day*24*60)%60)
+
 
 def mod(nb, q):  # Excel Reference: https://support.office.com/en-us/article/MOD-function-9b6cd169-b6ee-406a-a97b-edf2a9dc24f3
     if not isinstance(nb, int):
@@ -666,14 +692,20 @@ def mod(nb, q):  # Excel Reference: https://support.office.com/en-us/article/MOD
 
 
 def month(serial_number): # Excel reference: https://support.office.com/en-us/article/month-function-579a2881-199b-48b2-ab90-ddba0eba86e8
-    if not is_number(serial_number):
-        return ExcelError('#VALUE!', 'start_date %s must be a number' % str(serial_number))
-    if serial_number < 0:
-        return ExcelError('#VALUE!', 'start_date %s must be positive' % str(serial_number))
+    try:
+        date = date_from_excel(serial_number)
+        return date.month
+    except (TypeError, ValueError) as error_message:
+        return ExcelError('#VALUE!', error_message)
 
-    y1, m1, d1 = date_from_int(serial_number)
 
-    return m1
+
+def now(): #Excel reference: https://support.office.com/en-us/article/now-function-3337fd29-145a-4347-b2e6-20c904739c46
+    ''' local system time '''
+    local_time_delta = dt.datetime.now()-EXCEL_EPOCH
+    # note: Excel epoch is 1st Jan 1900; but a) Excel datetime serial number run from 1, and b) Excel treats 1900 as a leap year...
+    # hence '+ 2' days in the returned number below!
+    return (local_time_delta.days + 2) + (dt.timedelta(seconds=local_time_delta.seconds, microseconds=local_time_delta.microseconds) / dt.timedelta(hours=24))
 
 
 def npv(rate, *values): # Excel reference: https://support.office.com/en-us/article/NPV-function-8672cb67-2576-4d07-b67b-ac28acf2a568
@@ -834,6 +866,14 @@ def rows(array):
     return rows
 
 
+def second(serial_number): # Excel reference: https://support.office.com/en-us/article/SECOND-function-740D1CFC-553C-4099-B668-80EAA24E8AF1
+    
+    if not isinstance(serial_number, (int, float)):
+        return ExcelError('#VALUE!', '%s is not yet a supported Serial_number format' % str(serial_number))
+    fraction_of_day = serial_number % 1.0
+    return round((fraction_of_day*24*60*60)%60)
+
+
 def sln(cost, salvage, life): # Excel reference: https://support.office.com/en-us/article/SLN-function-cdb666e5-c1c6-40a7-806a-e695edc2f1c8
 
     for arg in [cost, salvage, life]:
@@ -934,18 +974,16 @@ def sumproduct(*ranges): # Excel reference: https://support.office.com/en-us/art
     return reduce(lambda X, Y: X + Y, reduce(lambda x, y: Range.apply_all('multiply', x, y), range_list).values)
 
 
-# https://support.office.com/en-ie/article/today-function-5eb3078d-a82c-4736-8930-2f51a028fdd9
-def today():
-    reference_date = datetime.datetime.today().date()
-    days_since_epoch = reference_date - EXCEL_EPOCH
-    # why +2 ?
-    # 1 based from 1900-01-01
-    # I think it is "inclusive" / to the _end_ of the day.
+def today(): # Excel reference: https://support.office.com/en-us/article/today-function-5eb3078d-a82c-4736-8930-2f51a028fdd9
+    ''' local system time '''
+    local_time_delta = dt.datetime.now()-EXCEL_EPOCH
+    # note: Excel epoch is 1st Jan 1900; but a) Excel datetime serial number run from 1, and b) Excel treats 1900 as a leap year...
+    # hence '+ 2' days in the returned number below!
     # https://support.office.com/en-us/article/date-function-e36c0c8c-4104-49da-ab83-82328b832349
     """Note: Excel stores dates as sequential serial numbers so that they can be used in calculations.
     January 1, 1900 is serial number 1, and January 1, 2008 is serial number 39448 because it is 39,447 days after January 1, 1900.
      You will need to change the number format (Format Cells) in order to display a proper date."""
-    return days_since_epoch.days + 2
+    return (local_time_delta.days + 2)
 
 
 def value(text):
@@ -1081,6 +1119,20 @@ def vlookup(lookup_value, table_array, col_index_num, range_lookup = True): # ht
             return ExcelError('#N/A', 'lookup_value smaller than all values of table_array')
 
     return Range.find_associated_value(ref, result_column)
+
+def weekday(serial_number, return_type=1): # Excel reference: https://support.office.com/en-us/article/WEEKDAY-function-60E44483-2ED1-439F-8BD0-E404C190949A
+
+    date = date_from_excel(serial_number)
+    day = date.weekday()            # 0 = Mon, 6 = Sun
+    if return_type == 1:            # 1 = Sun, 7 = Sat
+        return (day+2)%8
+    elif return_type == 2:          # 1 = Mon, 7 = Sun
+        return day+1
+    elif return_type == 3:          # 0 = Mon, 6 - Sun 
+        return day
+    elif 11 <= return_type <= 17:   # 1 = Mon...Sun, 7 = Sun...Sat
+        return 1+(day+18-return_type)%7
+    else: return ExcelError('#VALUE!', '%s is invalid return type' % str(return_type))
 
 
 def xirr(values, dates, guess=0):

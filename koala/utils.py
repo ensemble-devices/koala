@@ -16,6 +16,8 @@ ROW_RANGE_RE = re.compile(r"(\$?[1-9][0-9]{0,6}):(\$?[1-9][0-9]{0,6})$")
 COL_RANGE_RE = re.compile(r"(\$?[A-Za-z]{1,3}):(\$?[A-Za-z]{1,3})$")
 CELL_REF_RE = re.compile(r"(\$?[A-Za-z]{1,3})(\$?[1-9][0-9]{0,6})$")
 
+EXCEL_EPOCH = dt.datetime(1900,1,1)
+
 # We might need to test these util functions
 
 def is_almost_equal(a, b, precision = 0.0001):
@@ -446,6 +448,31 @@ def normalize_year(y, m, d):
             y, m, d = normalize_year(y, m, d)
 
     return (y, m, d)
+
+def date_from_excel(serial_number):
+    '''
+    converts an Excel serial number to a datetime object
+    Note: this disregards the time portion of the serial number 
+    '''
+    if not is_number(serial_number):
+        raise TypeError('%s is not yet a valid Serial_number' % str(serial_number))
+    serial_number =int(serial_number)
+    # note: Excel (incorrectly) treats 1900 as a leap year so there is an extra day in excel serial numbers post the fictional 29th Feb 1900!       
+    return dt.datetime(1900, 1, 1) + dt.timedelta( days=(serial_number - (1 if serial_number < 60 else 2)) )
+
+def excel_from_date(date_time):
+    '''
+    converts the date part of a datetime object into an excel serial number
+    '''
+    days = (date_time - EXCEL_EPOCH).days
+
+    # note: Excel (incorrectly) treats 1900 as a leap year so there is an extra day in excel serial numbers post the fictional 29th Feb 1900!
+    serial_number = days + (2 if days > 60 else 1)
+
+    if serial_number <= 0:
+        return ExcelError('#VALUE!', 'Date result is negative')
+    else:
+        return serial_number
 
 def date_from_int(nb):
     if not is_number(nb):
